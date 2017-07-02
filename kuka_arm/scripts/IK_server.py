@@ -109,7 +109,7 @@ def handle_calculate_IK(req):
             # get the x, y, z coordinates
             x_d = px - d_6_x - a_1_x
             y_d = py - d_6_y - a_1_y
-            z_d = pz - d_base
+            z_d = pz - d_base + d_6/3
 
             # x y plane arm projections
             r_xy = np.sqrt(x_d ** 2 + y_d ** 2)
@@ -145,16 +145,7 @@ def handle_calculate_IK(req):
                     req.poses[x].orientation.z, req.poses[x].orientation.w])
 
             # yaw, pitch, roll, R correction between frames
-            Rrpy_cor = rot_z(yaw) * rot_y(pitch) * rot_x(roll) #* rot_y(pi/2) * rot_z(pi)
-            #Rrpy_cor = rot_x(roll) * rot_y(pitch) * rot_x(yaw)
-
-            # end coordinates of the arm and start coordinates of the wrist
-            #c_px = px + d_6 #* float(Rrpy_cor[0, 2])
-            #c_py = py + d_6 #* float(Rrpy_cor[1, 2])
-            #c_pz = pz + d_6 #* float(Rrpy_cor[2, 2])
-            #print("px ", type(c_px), " py ", c_py, " pz ", c_pz)
-
-            print(type(roll), "   ", roll)
+            #Rrpy_cor = rot_z(yaw) * rot_y(pitch) * rot_x(roll) #* rot_y(pi/2) * rot_z(pi)
 
             # Spherical wrist
             # R3_6  [c4c5c6-s4s6, -c4c5s6-s4c6  , c4s5  ]
@@ -162,13 +153,13 @@ def handle_calculate_IK(req):
             #       [-s5c6      , s5s6          , c5    ]
             #print('Rrpy_cor')
             #print(Rrpy_cor)
-            r13 = Rrpy_cor[0, 2]
-            r23 = Rrpy_cor[1, 2]
-            r33 = Rrpy_cor[2, 2]
-            r11 = Rrpy_cor[0, 0]
-            r21 = Rrpy_cor[1, 0]
-            r12 = Rrpy_cor[0, 1]
-            r22 = Rrpy_cor[1, 1]
+            #r13 = Rrpy_cor[0, 2]
+            #r23 = Rrpy_cor[1, 2]
+            #r33 = Rrpy_cor[2, 2]
+            #r11 = Rrpy_cor[0, 0]
+            #r21 = Rrpy_cor[1, 0]
+            #r12 = Rrpy_cor[0, 1]
+            #r22 = Rrpy_cor[1, 1]
 
             ''' theta 5 '''
             #D_theta5 = sin(theta1) * r13 - cos(theta1) * r23
@@ -187,10 +178,6 @@ def handle_calculate_IK(req):
             #D_x = sin(theta1) * r12 + cos(theta1) * r22
             #theta6 = atan2(D_y, D_x)
             theta6 = (pi/2 - (alpha5 - beta5)) * -sin(theta1)
-
-            #theta4 = 0
-            #theta5 = -pi/4
-            #theta6 = 0
 
             print("t1: {:.3f}   t2: {:.3f}   t3: {:.3f}   t4: {:.3f}   t5: {:.3f}   t6: {:.3f}".
                   format(theta1*180/pi, theta2*180/pi, theta3*180/pi, theta4*180/pi, theta5*180/pi, theta6*180/pi))
