@@ -19,7 +19,7 @@ from geometry_msgs.msg import Pose
 #from mpmath import *
 #from sympy import *
 import numpy as np
-from math import atan2, cos, sin, asin, pi
+from math import atan2, cos, sin, acos, pi
 
 # Joint angle symbols
 #q0, q1, q2, q3, q4, q5, q6 = symbols('q0:7') # theta angle
@@ -119,6 +119,14 @@ def link_transform(a, alpha, d, theta):
                      [0, sin(alpha), cos(alpha), d],
                      [0, 0, 0, 1]])
 
+def limit_angle(theta, min, max):
+    if theta > pi * max / 180:
+        return pi * max / 180
+    elif theta < pi * min / 180:
+        return pi * min / 180
+    else:
+        return theta
+
 def handle_calculate_IK(req):
     rospy.loginfo("Received %s eef-poses from the plan" % len(req.poses))
     if len(req.poses) < 1:
@@ -131,13 +139,6 @@ def handle_calculate_IK(req):
         for x in xrange(0, len(req.poses)):
             # IK code starts here
             joint_trajectory_point = JointTrajectoryPoint()
-
-            (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
-                [req.poses[x].orientation.x, req.poses[x].orientation.y,
-                    req.poses[x].orientation.z, req.poses[x].orientation.w])
-
-            # yaw, pitch, roll, R correction between frames
-            Rrpy_cor = rpy_matrix(roll, pitch, yaw)# * rot_y(pi/2) * rot_z(pi)
 
             # Extract end-effector position and orientation from request
 	        # px,py,pz = end-effector position
@@ -154,7 +155,7 @@ def handle_calculate_IK(req):
             #   o ----------> x
             #
             # Calculate joint angles using Geometric IK method
-            theta1 = atan2(py, px)
+            theta1 = limit_angle(atan2(py, px), -185, 185)
 
             # remove base offsets from the wrist coords for theta 2 and 3
             a_1_x = a_1 * cos(theta1)  # link a_1 offset in x direction
@@ -163,7 +164,7 @@ def handle_calculate_IK(req):
             d_6_y = d_6 * sin(theta1)
             # get the desired end arm x, y, z coordinates
             x_d = px - d_6_x - a_1_x
-            y_d = py - d_6_y - a_1_y
+            y_d = py - a_1_y #- d_6_y
             z_d = pz - d_base + d_6/3
 
             # x y plane arm projections
@@ -196,32 +197,71 @@ def handle_calculate_IK(req):
             D_theta2 = (a_2 ** 2 + r_xyz ** 2 - link_3 ** 2) / (2 * a_2 * r_xyz)
             alpha2 = atan2(np.sqrt(np.abs(1 - D_theta2 ** 2)), D_theta2)
             # zero angle is along z axis
-            theta2 = beta2 - alpha2
+            theta2 = limit_angle(beta2 - alpha2, -45, 85)
 
             ''' theta 3 '''
             # law of cosine rule
             D_theta3 = (a_2 ** 2 + link_3 ** 2 - r_xyz ** 2) / (2 * a_2 * link_3)
             alpha3 = atan2(np.sqrt(np.abs(1 - D_theta3 ** 2)), D_theta3) + link_3_theta
-            theta3 = (alpha3 - pi / 2) * -1.0  # angle perpendicular wrt link 1 but alpha is from link 1
-
-            if theta3 > pi * (155 - 91) / 180:
-                theta3 = pi * (155 - 91) / 180
-            if theta3 < -pi:
-                theta3 = -pi
+            # angle perpendicular wrt link 1 but alpha is from link 1
+            theta3 = limit_angle((alpha3 - pi / 2) * -1.0, -210, 155-90)
 
             # Spherical wrist
             # R3_6  [c4c5c6-s4s6, -c4c5s6-s4c6  , c4s5  ]
             #       [s4c5c6+c4s6, -s4c5s6+c4c6  , s4s5  ]
             #       [-s5c6      , s5s6          , c5    ]
-            #r11 = Rrpy_cor[0, 0]
-            #r12 = Rrpy_cor[0, 1]
-            #r13 = Rrpy_cor[0, 2]
-            #r21 = Rrpy_cor[1, 0]
-            #r22 = Rrpy_cor[1, 1]
-            #r23 = Rrpy_cor[1, 2]
-            #r31 = Rrpy_cor[2, 0]
-            #r32 = Rrpy_cor[2, 1]
-            #r33 = Rrpy_cor[2, 2]
+            (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
+                [req.poses[x].orientation.x, req.poses[x].orientation.y,
+                 req.poses[x].orientation.z, req.poses[x].orientation.w])
+            # yaw, pitch, roll, R correction between frames
+            Rrpy_cor = rpy_matrix(yaw, pitch, roll)  # * rot_y(pi/2) #* rot_z(pi)
+            # print(Rrpy_cor)
+
+            '''
+            DH Table
+            Link    a       alpha   d       theta
+            1       a1      90      d1      *
+            2       a2      0       0       *
+            3       -a3     90      d3      *
+            '''
+            T0_3 = link_transform(a_1, pi/2, d_base, theta1)
+            T0_3 = T0_3 * link_transform(a_2, 0, 0, theta2)
+            T0_3 = T0_3 * link_transform(-a_3, pi / 2, d_3, theta3)
+
+            R3_6 = np.transpose(T0_3[:3, :3]) * Rrpy_cor
+            #print(R3_6)
+
+            r11 = R3_6[0, 0]
+            r12 = R3_6[0, 1]
+            r13 = R3_6[0, 2]
+            r21 = R3_6[1, 0]
+            r22 = R3_6[1, 1]
+            r23 = R3_6[1, 2]
+            r31 = R3_6[2, 0]
+            r32 = R3_6[2, 1]
+            r33 = R3_6[2, 2]
+
+            ''' theta 4 '''
+            # rotate wrist to keep theta 5 along x axis
+            #D_y = cos(theta1) * cos(r23) * r13 + sin(theta1) * cos(r23) * r23 + sin(r23) * r33
+            #D_x = -cos(theta1) * sin(r23) * r13 - sin(theta1) * sin(r23) * r23 + cos(r23) * r33
+            # theta4 = -(pi/2 * -sin(theta1)) #atan2(D_y, D_x)
+            # theta4 = pi/2 * sin(theta1) + pi/2
+
+            # create a plane onto the shelf with origin in the center and inverted axes
+            # rotate wrist around origin so axis 5 is the tangent of the circle from the origin
+            #           |                   |
+            # ----------+-------------------+------------
+            #           |               y   |
+            #           |        o------->  |
+            #           |        |          |
+            #           |        |z         |
+            # ----------+-------------------+------------
+            #           |                   |
+            z_o = (pz - (d_base + a_2)) * -1.  # origin of target shelf
+            y_o = -py
+            theta4 = -pi / 2 + atan2(z_o, y_o)
+            theta4 = limit_angle(theta4, -350, 350)
 
             ''' theta 5 '''
             # keeps wrist level using geometric association laws
@@ -229,21 +269,22 @@ def handle_calculate_IK(req):
             #theta5 = atan2(D_theta5, np.sqrt(np.abs(1 - D_theta5**2)))
             alpha5 = pi - alpha2 - alpha3
             beta5 = pi/2 - beta2
-            theta5 = (alpha5 - beta5) * (-1.0 - sin(abs(theta1)))
-
-            ''' theta 4 '''
-            # rotate wrist to keep theta 5 along x axis
-            #D_y = cos(theta1)*cos(r23)*r13 + sin(theta1)*cos(r23)*r23 + sin(r23)*r33
-            #D_x = -cos(theta1)*sin(r23)*r13 - sin(theta1)*sin(r23)*r23 + cos(r23)*r33
-            #theta4 = atan2(D_x, D_y)
-            theta4 = pi/2 * sin(theta1) + pi/2
+            theta5 = -(alpha5 - beta5)
+            if z_o < 0:
+                theta5 = -theta5
+            if sin(theta1) > 0.55:
+                theta5 -= pi/2 * sin(theta1)
+            #theta5 = acos((px*x_d + py*y_d + pz*z_d) / (r_xyz * np.sqrt(px**2 + py**2 + pz**2)))
+            #theta5 = theta1 - atan2(py - y_d, px - x_d) - atan2(pz - z_d, px - x_d) + (alpha5 - beta5)
+            theta5 = limit_angle(theta5, -125, 125)
 
             ''' theta 6 '''
             # rotate gripper keeping level wrt to the ground plane
-            #D_y = cos(theta1) * r21 - sin(theta1) * r11
-            #D_x = sin(theta1) * r12 - cos(theta1) * r22
-            #theta6 = atan2(D_x, D_y) - pi
-            theta6 = (pi/2 - (alpha5 - beta5)) * -sin(theta1)
+            D_y = cos(theta1) * r21 - sin(theta1) * r11
+            D_x = sin(theta1) * r12 - cos(theta1) * r22
+            theta6 = -theta4 #atan2(D_y, D_x)
+            #theta6 = (pi/2 - (alpha5 - beta5)) * -sin(theta1)
+            theta6 = limit_angle(theta6, -350, 350)
 
             print("t1: {:.3f}   t2: {:.3f}   t3: {:.3f}   t4: {:.3f}   t5: {:.3f}   t6: {:.3f}".
                   format(theta1*180/pi, theta2*180/pi, theta3*180/pi, theta4*180/pi, theta5*180/pi, theta6*180/pi))
