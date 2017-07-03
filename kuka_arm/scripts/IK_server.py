@@ -29,42 +29,91 @@ from math import atan2, cos, sin, asin, pi
 #alpha0, alpha1, alpha2, alpha3, alpha4, alpha5, alpha6 = symbols('alpha0:7')
 
 # DH Parameters
+'''
+DH Table
+Link    a       alpha   d       theta
+1       a1      90      d1      *
+2       a2      0       0       *
+3       -a3     90      d3      *
+4       0       -90     0       *
+5       0       90      0       *
+6       0       0       d6      *
+'''
 d_base = 0.75
 a_1 = 0.35
 a_2 = 1.25
 a_3 = -0.054
-d_4 = 1.5
+d_3 = 1.5
 d_6 = 0.303
-'''
-Link    a       alpha   d       theta
-1       a1      90      d1      *
-2       a2      0       0       *
-3       -a3     90      0       *
-4       0       -90     d4      *
-5       0       90      0       *
-6       0       0       d6      *
-'''
 
 # Create individual transformation matrices
-def rot_x(q):
+def rot_x(angle):
+    '''
+    Rotation about x axis
+    :param angle: amount of rotation about x
+    :return: rotation matrix
+    '''
     R_x = np.array([[1, 0, 0],
-                  [0, cos(q), -sin(q)],
-                  [0, sin(q), cos(q)]])
+                    [0, cos(angle), -sin(angle)],
+                    [0, sin(angle), cos(angle)]])
     return R_x
 
-def rot_y(q):
-    R_y = np.array([[cos(q), 0, sin(q)],
-                  [0, 1, 0],
-                  [-sin(q), 0, cos(q)]])
+def rot_y(angle):
+    '''
+    Rotation about y axis
+    :param angle: amount of rotation about y
+    :return: rotation matrix
+    '''
+    R_y = np.array([[cos(angle), 0, sin(angle)],
+                    [0, 1, 0],
+                    [-sin(angle), 0, cos(angle)]])
     return R_y
 
-def rot_z(q):
-    R_z = np.array([[cos(q), -sin(q), 0],
-                  [sin(q), cos(q), 0],
+def rot_z(angle):
+    '''
+    Rotation about z axis
+    :param angle: amount of rotation about z
+    :return: rotation matrix
+    '''
+    R_z = np.array([[cos(angle), -sin(angle), 0],
+                  [sin(angle), cos(angle), 0],
                   [0, 0, 1]])
     return R_z
 
+def rpy_matrix(roll, pitch, yaw):
+    '''
+    The rotation matrix with Roll, Pitch and Yaw
+    :param roll: angle about z axis
+    :param pitch: angle about y axis
+    :param yaw: angle about x axis
+    :return: rotation matrix
+    '''
+    # roll : about z axis
+    # pitch : about y axis
+    # yaw : about x axis
+    r11 = cos(roll)*cos(pitch)
+    r12 = -sin(roll)*cos(yaw) + cos(roll)*sin(pitch)*sin(yaw)
+    r13 = sin(roll)*sin(yaw) + cos(roll)*sin(pitch)*cos(yaw)
+    r21 = sin(roll)*cos(pitch)
+    r22 = cos(roll)*cos(yaw) + sin(roll)*sin(pitch)*sin(yaw)
+    r23 = -cos(roll)*sin(yaw) + sin(roll)*sin(pitch)*cos(yaw)
+    r31 = -sin(pitch)
+    r32 = cos(pitch)*sin(yaw)
+    r33 = cos(pitch)*cos(yaw)
+
+    return np.array([[r11, r12, r13],
+                     [r21, r22, r23],
+                     [r31, r32, r33]])
+
 def link_transform(a, alpha, d, theta):
+    '''
+    original DH transformation matrix creator
+    :param a: distance from Zi-1 to Zi, measured along Xi
+    :param alpha: angle from Zi-1 to Zi, measured about Xi
+    :param d:  distance from Xi-1 to Xi, measured along Zi-1
+    :param theta: angle from Xi-1 to Xi, measured about Zi-1
+    :return: link transformation matrix
+    '''
     return np.array([[cos(theta), -sin(theta) * cos(alpha), sin(theta) * sin(alpha), a * cos(theta)],
                      [sin(theta), cos(theta) * cos(alpha), -cos(theta) * sin(alpha), a * cos(theta)],
                      [0, sin(alpha), cos(alpha), d],
@@ -83,12 +132,12 @@ def handle_calculate_IK(req):
             # IK code starts here
             joint_trajectory_point = JointTrajectoryPoint()
 
-            '''R3_6 =
-            ([[-sin(q4) * sin(q6) + cos(q4) * cos(q5) * cos(q6), -sin(q4) * cos(q6) - sin(q6) * cos(q4) * cos(q5),
-               -sin(q5) * cos(q4)],
-              [sin(q5) * cos(q6), -sin(q5) * sin(q6), cos(q5)],
-              [-sin(q4) * cos(q5) * cos(q6) - sin(q6) * cos(q4), sin(q4) * sin(q6) * cos(q5) - cos(q4) * cos(q6),
-               sin(q4) * sin(q5)]])'''
+            (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
+                [req.poses[x].orientation.x, req.poses[x].orientation.y,
+                    req.poses[x].orientation.z, req.poses[x].orientation.w])
+
+            # yaw, pitch, roll, R correction between frames
+            Rrpy_cor = rpy_matrix(roll, pitch, yaw)# * rot_y(pi/2) * rot_z(pi)
 
             # Extract end-effector position and orientation from request
 	        # px,py,pz = end-effector position
@@ -98,6 +147,12 @@ def handle_calculate_IK(req):
             pz = req.poses[x].position.z
 
             ''' theta 1 '''
+            #   ^ y
+            #   |
+            #   |
+            #   |
+            #   o ----------> x
+            #
             # Calculate joint angles using Geometric IK method
             theta1 = atan2(py, px)
 
@@ -106,26 +161,41 @@ def handle_calculate_IK(req):
             a_1_y = a_1 * sin(theta1)
             d_6_x = d_6 * cos(theta1)  # link d_6 offset in x direction
             d_6_y = d_6 * sin(theta1)
-            # get the x, y, z coordinates
+            # get the desired end arm x, y, z coordinates
             x_d = px - d_6_x - a_1_x
             y_d = py - d_6_y - a_1_y
             z_d = pz - d_base + d_6/3
 
             # x y plane arm projections
             r_xy = np.sqrt(x_d ** 2 + y_d ** 2)
-            # x, y, z plane arm length
+            # x, y, z 3D plane arm length
             r_xyz = np.sqrt(x_d ** 2 + y_d ** 2 + z_d ** 2)
 
-            # calculate link 3 offsets and distance to arm end frame
-            link_3 = np.sqrt(a_3 ** 2 + d_4 ** 2)
-            link_3_theta = atan2(a_3, d_4)
+            # calculate link 3 shoulder angle and distance to wrist center
+            #         |----- d_3 ------| _
+            #         O *               a_3
+            #       *   * * * * * * * *  -
+            #     *
+            #   *
+            link_3 = np.sqrt(a_3 ** 2 + d_3 ** 2)
+            link_3_theta = atan2(a_3, d_3)
 
             ''' theta 2 '''
-            beta2 = atan2(r_xy, z_d)  # link 2 angle from z axis / vertical (pi/4)
+            #   ^ z
+            #   |
+            #   | a-b   o
+            #   |---- *
+            #   |   *
+            #   | *
+            #   o ----------> x
+            #
+            # link 1 to wrist center angle from z axis / vertical (pi/2)
+            beta2 = atan2(r_xy, z_d)
 
             # law of cosine rule
             D_theta2 = (a_2 ** 2 + r_xyz ** 2 - link_3 ** 2) / (2 * a_2 * r_xyz)
             alpha2 = atan2(np.sqrt(np.abs(1 - D_theta2 ** 2)), D_theta2)
+            # zero angle is along z axis
             theta2 = beta2 - alpha2
 
             ''' theta 3 '''
@@ -139,29 +209,22 @@ def handle_calculate_IK(req):
             if theta3 < -pi:
                 theta3 = -pi
 
-
-            (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
-                [req.poses[x].orientation.x, req.poses[x].orientation.y,
-                    req.poses[x].orientation.z, req.poses[x].orientation.w])
-
-            # yaw, pitch, roll, R correction between frames
-            #Rrpy_cor = rot_z(yaw) * rot_y(pitch) * rot_x(roll) #* rot_y(pi/2) * rot_z(pi)
-
             # Spherical wrist
             # R3_6  [c4c5c6-s4s6, -c4c5s6-s4c6  , c4s5  ]
             #       [s4c5c6+c4s6, -s4c5s6+c4c6  , s4s5  ]
             #       [-s5c6      , s5s6          , c5    ]
-            #print('Rrpy_cor')
-            #print(Rrpy_cor)
-            #r13 = Rrpy_cor[0, 2]
-            #r23 = Rrpy_cor[1, 2]
-            #r33 = Rrpy_cor[2, 2]
             #r11 = Rrpy_cor[0, 0]
-            #r21 = Rrpy_cor[1, 0]
             #r12 = Rrpy_cor[0, 1]
+            #r13 = Rrpy_cor[0, 2]
+            #r21 = Rrpy_cor[1, 0]
             #r22 = Rrpy_cor[1, 1]
+            #r23 = Rrpy_cor[1, 2]
+            #r31 = Rrpy_cor[2, 0]
+            #r32 = Rrpy_cor[2, 1]
+            #r33 = Rrpy_cor[2, 2]
 
             ''' theta 5 '''
+            # keeps wrist level using geometric association laws
             #D_theta5 = sin(theta1) * r13 - cos(theta1) * r23
             #theta5 = atan2(D_theta5, np.sqrt(np.abs(1 - D_theta5**2)))
             alpha5 = pi - alpha2 - alpha3
@@ -169,14 +232,17 @@ def handle_calculate_IK(req):
             theta5 = (alpha5 - beta5) * (-1.0 - sin(abs(theta1)))
 
             ''' theta 4 '''
-            #D_y = cos(theta1)*cos(theta1)
-            #theta4 = atan2(r13, r23)
-            theta4 = pi/2 * sin(theta1)
+            # rotate wrist to keep theta 5 along x axis
+            #D_y = cos(theta1)*cos(r23)*r13 + sin(theta1)*cos(r23)*r23 + sin(r23)*r33
+            #D_x = -cos(theta1)*sin(r23)*r13 - sin(theta1)*sin(r23)*r23 + cos(r23)*r33
+            #theta4 = atan2(D_x, D_y)
+            theta4 = pi/2 * sin(theta1) + pi/2
 
             ''' theta 6 '''
+            # rotate gripper keeping level wrt to the ground plane
             #D_y = cos(theta1) * r21 - sin(theta1) * r11
-            #D_x = sin(theta1) * r12 + cos(theta1) * r22
-            #theta6 = atan2(D_y, D_x)
+            #D_x = sin(theta1) * r12 - cos(theta1) * r22
+            #theta6 = atan2(D_x, D_y) - pi
             theta6 = (pi/2 - (alpha5 - beta5)) * -sin(theta1)
 
             print("t1: {:.3f}   t2: {:.3f}   t3: {:.3f}   t4: {:.3f}   t5: {:.3f}   t6: {:.3f}".
