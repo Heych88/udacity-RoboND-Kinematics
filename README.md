@@ -1,5 +1,5 @@
 # udacity-RoboND-Kinematics
-Forward and inverse kinematics implementation of the kuka kr210 [Robot Arm - Pick & Robotic](https://github.com/udacity/RoboND-Kinematics-Project).
+Forward and inverse kinematics implementation of the Kuka kr210 [Robot Arm - Pick & Robotic](https://github.com/udacity/RoboND-Kinematics-Project).
 
 ## Installation and Setup
 
@@ -26,7 +26,7 @@ pip install pyyaml --user
 git clone https://github.com/Heych88/udacity-RoboND-Kinematics.git
 ```
 
-5. Navigate into where this repository was downloaded or cloned and copy `IK_server.py` to the Udacity Projects repository folder *RoboND-Kinematics-Project/kuka_arm/scripts*. If the steps followed in [Udacity Projects repository](https://github.com/udacity/RoboND-Kinematics-Project), the installation will be in *~/catkin_ws/*.
+5. Navigate into where this repository was downloaded or cloned and copy `IK_server.py` to the Udacity Projects repository folder *RoboND-Kinematics-Project/kuka_arm/scripts*. If the steps followed in [Udacity Projects repository](https://github.com/udacity/RoboND-Kinematics-Project), the installation would be in *~/catkin_ws/*.
 ```
 cp IK_server.py ~/catkin_ws/src/RoboND-Kinematics-Project/kuka_arm
 /scripts
