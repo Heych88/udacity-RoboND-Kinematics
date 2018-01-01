@@ -17,8 +17,8 @@
 
 [//]: # (Image References)
 
-[image1]: ./misc_images/Mod_DH_parameters.jpg
-[image2]: ./misc_images/robot_arm.png
+[image1]: ./misc_images/robot_DH.jpg
+[image2]: ./misc_images/robot_arm2.png
 [image3]: ./misc_images/Original_DH.jpg
 [image4]: ./misc_images/transform_formula.png
 [image5]: ./misc_images/calcs.jpg
@@ -51,13 +51,13 @@ From the above image, the following Modified Denavit-Hartenberg parameters have 
 
 Link | a | alpha | d | theta
 --- | --- | --- | --- | ---
-0 | 0 | 0 | d0 | theta1*
-1 | a1 | pi/2 | 0 | theta2*
-2 | a2 | 0 | 0 | theta3*
-3 | -a3 | pi/2 | d3 | theta4*
-4 | 0 | -pi/2 | 0 | theta5*
-5 | 0 | pi/2 | 0 | theta6*
-6 | 0 | 0 | d6 | 0
+1 | a1 | pi/2 | d1 | theta1*
+2 | a2 | 0 | 0 | theta2* + pi/2
+3 | -a3 | pi/2 | 0 | theta3*
+4 | 0 | -pi/2 | d4 | theta4*
+5 | 0 | pi/2 | 0 | theta5*
+6 | 0 | 0 | 0 | theta6*
+g (gripper) | 0 | 0 | dg | 0
 
 The above parameters have been obtained by the following method.
 * a(i) is the distance from Z(i-1) to Z(i) measured along X(i-1).
