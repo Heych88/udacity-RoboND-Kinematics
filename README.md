@@ -1,12 +1,20 @@
 # Kuka KR210 Pick & Place Kinematics
 
-A forward and inverse kinematics implementation using ROS and Python to control the joint angles of the Kuka KR210 six degree of freedom robotic arm used in the Udacity Pick and Place project. A video of the 6DOF arm in action can be found [here](https://youtu.be/r3gGQV-yjX0). 
+A forward and inverse kinematics implementation using ROS and Python to control the joint angles of the Kuka KR210 six degree of freedom robotic arm used in the Udacity Pick and Place project. 
 
-This repository contains the Forward and inverse kinematics implementation of the Udacity [Robot Arm - Pick & Place](https://github.com/udacity/RoboND-Kinematics-Project) project.
+A video of the 6DOF arm in action can be seen below.
+
+[![6DOF arm in action](misc_images/video.png)](https://youtu.be/r3gGQV-yjX0)
+
+
 
 ## Writeup
 
 The [writeup.md](writeup.md) contains details of the code and mathematicle derivations used in this project.
+
+#### External repositories
+
+This repository contains the Forward and inverse kinematics implementation of the Udacity [Robot Arm - Pick & Place](https://github.com/udacity/RoboND-Kinematics-Project) project.
 
 ## Installation and Setup
 
