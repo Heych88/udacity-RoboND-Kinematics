@@ -7,10 +7,9 @@ A video of the 6DOF arm in action can be seen below.
 [![6DOF arm in action](misc_images/video.png)](https://youtu.be/r3gGQV-yjX0)
 
 
+## Project website
 
-## Writeup
-
-The [writeup.md](writeup.md) contains details of the code and mathematicle derivations used in this project.
+This repository has an accompanying project page, contains the theory and details behind the code. It can be found [here](https://www.haidynmcleod.com/robot-arm-kinematics).
 
 #### External repositories
 
